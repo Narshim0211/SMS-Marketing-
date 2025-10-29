@@ -1,5 +1,12 @@
 # AI Assistant Tool — Product Requirements Document (PRD)
 
+## Document Metadata
+- Version: 1.0.0
+- Status: Draft
+- Last Updated: 2025-10-29
+- Owner: Product (TBD)
+- Audience: Product, Design, Engineering, QA
+
 ## Project: AI Assistant Tool (MVP)
 - Goal: Deliver a conversational assistant that helps users think, write, and act faster via chat, summaries, and structured actions, with a clean, intuitive UI.
 
@@ -31,6 +38,31 @@
 - Conversion: % of AI responses turned into notes/tasks.
 - Weekly retention; session length; CSAT (👍/👎).
 - Reliability: error rate <1%; uptime targets per deployment.
+
+## Technical Requirements (Stack-Agnostic)
+- Frontend
+  - Any SPA framework (React recommended with shadcn/ui).
+  - State: Context, Zustand, Redux, or equivalent.
+  - Markdown rendering with sanitization; streaming UI via SSE/WebSocket client.
+  - Local-first persistence (localStorage/IndexedDB); optional server sync behind feature flag.
+- Backend
+  - HTTP/JSON API; streaming via SSE or WebSocket.
+  - Pluggable LLM provider interface (OpenAI, Anthropic, etc.).
+  - Optional database for sessions/messages/notes/tasks/prompts.
+  - Config via environment; secrets managed securely.
+- Security/Privacy
+  - No training on user data; configurable retention; deletion endpoints.
+  - Input/output redaction in logs; strict CORS; rate limits.
+- Observability
+  - Tracing IDs; structured logs; latency and token metrics.
+
+## Example User Flow
+1. User opens app → greeting shown: “Hi! How can I help today?” plus 3 suggested prompts.
+2. User types: “Create a reminder to message my clients about weekend discounts.”
+3. Assistant streams a draft reminder and suggests actions: [Copy] [Regenerate] [Add as Note] [Create Task].
+4. User clicks “Save as Note” → a Dialog opens with prefilled title/content → user edits and saves.
+5. Note appears in the sidebar under Notes/Tasks; a toast confirms save.
+6. User pins “Salon details” in Settings → future responses include pinned context.
 
 ---
 
@@ -74,6 +106,17 @@
 
 ## UI Components (shadcn/ui recommendations)
 - Input, Button, Textarea, ScrollArea, Card, Tabs, Dialog/Sheet, Badge, Tooltip, DropdownMenu, Separator, Skeleton, Toast/Toaster, Toggle/Checkbox, Avatar.
+
+### Feature-to-Component Mapping (shadcn/ui)
+| Feature | Components |
+| --- | --- |
+| Chat message list | ScrollArea, Separator, Avatar, Skeleton |
+| Composer | Input/Textarea, Button, Tooltip |
+| Smart actions | Button, DropdownMenu, Toast/Toaster |
+| Sidebar lists | Tabs, Card, Badge, DropdownMenu, ScrollArea |
+| Create/Edit modals | Dialog or Sheet, Input, Textarea, Date picker |
+| Feedback (👍/👎) | Button/Toggle, Tooltip |
+| Settings | Dialog, Tabs, Checkbox/Toggle, Input |
 
 ## Interaction Flows
 - Send Message
@@ -187,6 +230,20 @@
       { "sessionId":"string", "messageId":"string", "rating":"up|down", "comment":"string|null" }
       ```
 
+### API Error Model and Status Codes
+- Error response shape:
+```json
+{ "error": { "code": "string", "message": "string", "details": {} }}
+```
+- Codes and typical HTTP statuses:
+  - invalid_request (400)
+  - unauthorized (401)
+  - forbidden (403)
+  - not_found (404)
+  - rate_limited (429)
+  - provider_error (502)
+  - server_error (500)
+
 ## Chat Orchestration & Memory
 - System Prompt
   - Brief, role-establishing; instruct on tone, formatting (markdown), action suggestions.
@@ -270,6 +327,15 @@ You are an AI teammate that helps users think, write, and act—faster.
 - Reliability
   - Graceful fallbacks on provider errors; clear user messaging.
 
+## Feature Flags & Configuration
+- feature.localPersistenceOnly (default true): disables server sync when true.
+- feature.promptLibrary (default false): enables Prompt Library UI.
+- feature.feedback (default true): enables 👍/👎.
+- llm.provider (e.g., "openai", "anthropic").
+- llm.model (default per provider).
+- security.corsAllowedOrigins (list).
+- limits.maxPromptLength, limits.maxContextTurns.
+
 ---
 
 # Data Contracts (Representative)
@@ -331,6 +397,21 @@ You are an AI teammate that helps users think, write, and act—faster.
 - Telemetry
   - Each chat request logs latency, token usage, and stream start event.
 
+## QA Test Plan (MVP)
+- Chat & Streaming
+  - Verify send, stream start < 2s perceived; Stop interrupts within 300ms.
+  - Markdown rendering for headings, lists, code blocks, tables.
+- Memory & Context
+  - Pinned context affects responses; clearing session resets memory and UI.
+- Actions
+  - Copy copies full text; Regenerate replaces last assistant response; Add as Note/Task saves reliably.
+- Notes/Tasks
+  - Create/edit/delete; tags/status; persists across reloads (local or server when enabled).
+- Accessibility
+  - Keyboard navigation across chat, sidebar, dialogs; screen reader labels.
+- Error Handling
+  - Simulate provider errors/rate limits; user sees actionable error + Retry.
+
 ---
 
 # Release Plan
@@ -376,6 +457,16 @@ You are an AI teammate that helps users think, write, and act—faster.
   - HTTP API with SSE for streaming.
   - LLM provider client behind an interface; env-configured.
   - If persisting, simple relational schema or a document store; migrations versioned.
+
+---
+
+# Glossary
+
+- Pinned Context: User-authored notes always included in the prompt context.
+- Session Summary: Rolling summary of older turns kept when token limits are reached.
+- Smart Actions: UI affordances following an assistant response (Copy, Regenerate, Add Note/Task).
+- SSE: Server-Sent Events; uni-directional streaming from server to client.
+- Token Usage: Count of model input/output tokens for observability and cost tracking.
 
 ---
 
